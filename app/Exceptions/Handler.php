@@ -2,8 +2,10 @@
 
 namespace App\Exceptions;
 
+use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Exceptions\Handler as ExceptionHandler;
 use Throwable;
+use Illuminate\Validation\ValidationException;
 
 class Handler extends ExceptionHandler
 {
@@ -18,6 +20,23 @@ class Handler extends ExceptionHandler
         'password_confirmation',
     ];
 
+    protected function invalidJson($request, ValidationException $exception)
+    {
+        return response()->json([
+            'errors' => collect($exception->errors())->map(function ($message, $field) use
+            ($exception) {
+                return [
+                    'status' => '422',
+                    'title' => 'Validation Error',
+                    'details' => $message[0],
+                    'source' => [
+                        'pointer' => '/data/attributes/' . $field
+                    ]
+                ];
+            })->values()
+        ], $exception->status);
+    }
+
     /**
      * Register the exception handling callbacks for the application.
      */
@@ -27,4 +46,23 @@ class Handler extends ExceptionHandler
             //
         });
     }
+
+    public function render($request, Throwable $exception)
+    {
+        if ($exception instanceof ValidationException)
+            return $this->invalidJson($request, $exception);
+
+        if ($exception instanceof QueryException)
+            return response()->json([
+                "errors" => [
+                    "status" => "500",
+                    "title" => "Database Error",
+                    "detail" => "Error procesando la respuesta"
+                ]
+            ],500);
+
+        return parent::render($request, $exception);
+
+    }
+
 }
